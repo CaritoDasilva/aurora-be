@@ -1,0 +1,19 @@
+{
+  "name": "@aurora/input-processor",
+  "version": "1.0.0",
+  "description": "Multimodal input handler — normalizes voice, image, and text into AuroraMessage",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "openai": "^4.0.0",
+    "@anthropic-ai/sdk": "^0.24.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}

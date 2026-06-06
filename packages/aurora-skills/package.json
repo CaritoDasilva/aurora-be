@@ -1,0 +1,19 @@
+{
+  "name": "@aurora/aurora-skills",
+  "version": "1.0.0",
+  "description": "Aurora-specific callable skills: make calls, send SMS, medication reminders, emergency contacts, image description",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@aurora/memory-plugin": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}

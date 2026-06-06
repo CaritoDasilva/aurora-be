@@ -1,0 +1,15 @@
+{
+  "name": "@aurora/response-formatter",
+  "version": "1.0.0",
+  "description": "Formats agent responses for display — supports text, voice (SSML), or both; tuned for 60+ users",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}
