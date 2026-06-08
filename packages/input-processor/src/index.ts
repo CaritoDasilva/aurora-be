@@ -1,98 +1,77 @@
-/**
- * input-processor
- *
- * Accepts multimodal input (voice, image, or text) and normalizes it
- * into a typed AuroraMessage for downstream processing.
- *
- * Voice  → Whisper STT transcription → text
- * Image  → Claude Vision description → text
- * Text   → passed through as-is
- */
+import { v4 as uuidv4 } from 'uuid';
+import { RawInput, AuroraMessage, ProcessorConfig } from './types.js';
+import { transcribeAudio } from './whisper-bridge.js';
+import { describeImage } from './vision-bridge.js';
 
-export type InputType = 'text' | 'voice' | 'image';
-
-export interface RawInput {
-  type: InputType;
-  /** Raw text for type=text; base64 audio for type=voice; base64/URL for type=image */
-  payload: string;
-  /** Optional: user ID to associate the message with a profile */
-  userId?: string;
-  /** Optional: IANA language tag (e.g. 'es-ES', 'en-US') for voice transcription */
-  language?: string;
-}
-
-export interface AuroraMessage {
-  /** Normalized plain-text content ready for the agent */
-  text: string;
-  /** Original input type before normalization */
-  originalType: InputType;
-  userId?: string;
-  /** ISO 8601 timestamp of when the message was processed */
-  timestamp: string;
-  /** Extra metadata produced during processing (e.g. Whisper confidence, vision context) */
-  metadata?: Record<string, unknown>;
-}
+export * from './types.js';
 
 export class InputProcessor {
-  /**
-   * Normalizes any RawInput into an AuroraMessage.
-   *
-   * TODO: inject OpenAI client for Whisper (voice) and Anthropic client for
-   *       Claude Vision (image) via constructor dependency injection.
-   */
+  private config: ProcessorConfig;
+
+  constructor(config: ProcessorConfig = {}) {
+    this.config = {
+      whisperModel: config.whisperModel || 'small',
+      anthropicApiKey: config.anthropicApiKey || process.env.ANTHROPIC_API_KEY,
+      defaultLanguage: config.defaultLanguage || 'es',
+    };
+  }
+
   async process(input: RawInput): Promise<AuroraMessage> {
-    let text: string;
-    const metadata: Record<string, unknown> = {};
+    const startTime = Date.now();
+
+    let content: string;
+    let confidence: number | undefined;
+    let detectedLanguage: string | undefined;
 
     switch (input.type) {
       case 'text':
-        // TODO: apply basic sanitization (trim, normalize whitespace)
-        text = input.payload.trim();
+        if (!input.text) throw new Error('Text input requires text field');
+        content = input.text.trim();
+        detectedLanguage = input.language || this.config.defaultLanguage;
         break;
 
-      case 'voice':
-        // TODO: call OpenAI Whisper API
-        //   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        //   const transcription = await openai.audio.transcriptions.create({
-        //     file: createReadStreamFromBase64(input.payload),
-        //     model: 'whisper-1',
-        //     language: input.language,
-        //   });
-        //   text = transcription.text;
-        //   metadata.whisperConfidence = transcription.confidence;
-        text = '[voice-transcription-stub]';
-        metadata.stub = true;
+      case 'voice': {
+        if (!input.audioPath) throw new Error('Voice input requires audioPath');
+        const transcription = await transcribeAudio(
+          input.audioPath,
+          this.config.whisperModel,
+          input.language
+        );
+        content = transcription.text.trim();
+        confidence = transcription.confidence;
+        detectedLanguage = transcription.language;
         break;
+      }
 
-      case 'image':
-        // TODO: call Anthropic Claude Vision API
-        //   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-        //   const response = await anthropic.messages.create({
-        //     model: 'claude-opus-4-8',
-        //     max_tokens: 1024,
-        //     messages: [{
-        //       role: 'user',
-        //       content: [
-        //         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: input.payload } },
-        //         { type: 'text', text: 'Describe what you see in this image for an elderly user.' },
-        //       ],
-        //     }],
-        //   });
-        //   text = response.content[0].text;
-        text = '[image-description-stub]';
-        metadata.stub = true;
+      case 'image': {
+        if (!this.config.anthropicApiKey) {
+          throw new Error('Image processing requires ANTHROPIC_API_KEY');
+        }
+        const vision = await describeImage(
+          input.imagePath,
+          input.imageBase64,
+          this.config.anthropicApiKey
+        );
+        content = `[IMAGEN] ${vision.description} Intención probable: ${vision.intent}`;
+        detectedLanguage = this.config.defaultLanguage;
         break;
+      }
 
       default:
         throw new Error(`Unknown input type: ${(input as RawInput).type}`);
     }
 
+    const processingTimeMs = Date.now() - startTime;
+
     return {
-      text,
-      originalType: input.type,
-      userId: input.userId,
-      timestamp: new Date().toISOString(),
-      metadata: Object.keys(metadata).length ? metadata : undefined,
+      id: uuidv4(),
+      type: input.type,
+      content,
+      originalInput: input,
+      confidence,
+      detectedLanguage,
+      processingTimeMs,
+      timestamp: new Date(),
     };
   }
 }
