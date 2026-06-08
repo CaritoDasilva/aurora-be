@@ -1,15 +1,23 @@
 import { v4 as uuidv4 } from 'uuid';
 import { InputProcessor } from '@aurora/input-processor';
 import { SafetyLayer } from '@aurora/safety-layer';
+import type { ActionCategory } from '@aurora/safety-layer';
+import { SkillsExecutor } from '@aurora/aurora-skills';
 import type { RawInput } from '@aurora/input-processor';
 import type { EngineConfig, EngineResponse } from './types.js';
 
 export type { EngineConfig, EngineResponse } from './types.js';
 export type { RawInput } from '@aurora/input-processor';
 
+interface PendingAction {
+  content: string;
+  category: ActionCategory;
+}
+
 export class AuroraEngine {
   private inputProcessor: InputProcessor;
   private safetyLayer: SafetyLayer;
+  private skillsExecutor: SkillsExecutor;
 
   constructor(config: EngineConfig = {}) {
     this.inputProcessor = new InputProcessor({
@@ -21,6 +29,7 @@ export class AuroraEngine {
       anthropicApiKey: config.anthropicApiKey,
       strictMode: config.strictMode,
     });
+    this.skillsExecutor = new SkillsExecutor();
   }
 
   async process(input: RawInput): Promise<EngineResponse> {
@@ -37,28 +46,32 @@ export class AuroraEngine {
 
     if (safety.level === 'confirm') {
       const confirmationPrompt = safety.confirmationPrompt ?? '¿Confirmas esta acción?';
+      const pending: PendingAction = { content: auroraMessage.content, category: safety.category };
       return {
         id: uuidv4(),
         status: 'awaiting_confirmation',
         message: confirmationPrompt,
         confirmationPrompt,
-        pendingAction: JSON.stringify(auroraMessage),
+        pendingAction: JSON.stringify(pending),
       };
     }
 
+    // safe — execute skill directly
+    const result = await this.skillsExecutor.execute(safety.category, auroraMessage.content);
     return {
       id: uuidv4(),
       status: 'completed',
-      message: 'Entendido: ' + auroraMessage.content,
+      message: result.message,
     };
   }
 
   async confirm(pendingAction: string): Promise<EngineResponse> {
-    const auroraMessage = JSON.parse(pendingAction) as { content: string };
+    const { content, category } = JSON.parse(pendingAction) as PendingAction;
+    const result = await this.skillsExecutor.execute(category ?? 'other', content);
     return {
       id: uuidv4(),
       status: 'completed',
-      message: 'Acción confirmada: ' + auroraMessage.content,
+      message: result.message,
     };
   }
 

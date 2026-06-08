@@ -1,7 +1,7 @@
 {
   "name": "@aurora/aurora-skills",
   "version": "1.0.0",
-  "description": "Aurora-specific callable skills: make calls, send SMS, medication reminders, emergency contacts, image description",
+  "description": "Aurora OS integrations: call/SMS via Twilio, Windows reminders, web search",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
@@ -9,11 +9,12 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.0",
-    "@aurora/memory-plugin": "workspace:*"
+    "node-notifier": "^10.0.0",
+    "twilio": "^4.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "@types/node-notifier": "^8.0.0",
+    "typescript": "^5.4.0"
   }
 }

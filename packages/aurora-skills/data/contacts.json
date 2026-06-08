@@ -1,0 +1,5 @@
+[
+  { "name": "María García", "phone": "+1555000001", "relationship": "hija" },
+  { "name": "Dr. Ramírez",  "phone": "+1555000002", "relationship": "médico" },
+  { "name": "Emergencias",  "phone": "911",         "relationship": "emergencia" }
+]
