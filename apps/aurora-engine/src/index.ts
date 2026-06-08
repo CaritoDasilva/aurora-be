@@ -1,181 +1,72 @@
-/**
- * aurora-engine
- *
- * Entry point for the Aurora AI assistant backend.
- * Wires all packages into a 5-layer processing pipeline:
- *
- *   [RawInput]
- *       │
- *   InputProcessor   (normalize voice/image/text → AuroraMessage)
- *       │
- *   SafetyLayer      (detect injection / dangerous commands / emergencies)
- *       │
- *   ConfirmationGate (pause for user YES/NO on irreversible actions)
- *       │
- *   ChannelRouter    (send to Claude agent + dispatch Aurora skills)
- *       │
- *   ResponseFormatter (text + SSML output for display/TTS)
- *       │
- *   [HTTP Response]
- */
-
-import express, { Application, Request, Response, NextFunction } from 'express';
-import { InputProcessor, RawInput } from '@aurora/input-processor';
+import { v4 as uuidv4 } from 'uuid';
+import { InputProcessor } from '@aurora/input-processor';
 import { SafetyLayer } from '@aurora/safety-layer';
-import { ConfirmationGate } from '@aurora/confirmation-gate';
-import { MemoryPlugin } from '@aurora/memory-plugin';
-import { ChannelRouter } from '@aurora/channel-router';
-import { ResponseFormatter } from '@aurora/response-formatter';
-import * as AuroraSkills from '@aurora/aurora-skills';
+import type { RawInput } from '@aurora/input-processor';
+import type { EngineConfig, EngineResponse } from './types.js';
 
-// ── Bootstrap ──────────────────────────────────────────────────────────────
+export type { EngineConfig, EngineResponse } from './types.js';
+export type { RawInput } from '@aurora/input-processor';
 
-const app: Application = express();
-app.use(express.json());
+export class AuroraEngine {
+  private inputProcessor: InputProcessor;
+  private safetyLayer: SafetyLayer;
 
-const inputProcessor = new InputProcessor();
-const safetyLayer = new SafetyLayer();
-const confirmationGate = new ConfirmationGate();
-const memory = new MemoryPlugin();
-const router = new ChannelRouter();
-const formatter = new ResponseFormatter();
-
-// Wire the confirmation gate to broadcast to connected SSE/WebSocket clients
-// TODO: replace this stub with a real push mechanism (Server-Sent Events or WS)
-confirmationGate.registerConfirmationHandler((req, resolve) => {
-  console.warn('[ConfirmationGate] Action requires confirmation:', req.action);
-  console.warn('[ConfirmationGate] Stub: auto-denying until real push is wired');
-  resolve(false);
-});
-
-const PORT = Number(process.env.AURORA_PORT ?? 3000);
-
-// ── Routes ─────────────────────────────────────────────────────────────────
-
-/**
- * POST /message
- *
- * Body: { type: 'text'|'voice'|'image', payload: string, userId?: string, language?: string }
- *
- * Response: { text: string, ssml?: string, safe: boolean, emergency?: boolean }
- */
-interface MessageBody {
-  type: RawInput['type'];
-  payload: string;
-  userId?: string;
-  language?: string;
-}
-
-app.post('/message', async (req: Request, res: Response) => {
-  const body = req.body as MessageBody;
-
-  if (!body?.type || !body?.payload) {
-    res.status(400).json({ error: 'Missing required fields: type, payload' });
-    return;
-  }
-
-  const rawInput: RawInput = {
-    type: body.type,
-    text: body.payload,
-    userId: body.userId,
-    language: body.language,
-  };
-
-  // ── Layer 1: Input normalization ──────────────────────────────────────────
-  let auroraMessage;
-  try {
-    auroraMessage = await inputProcessor.process(rawInput);
-  } catch (err) {
-    res.status(422).json({ error: `Input processing failed: ${String(err)}` });
-    return;
-  }
-
-  // ── Layer 2: Safety classification ───────────────────────────────────────
-  const safety = await safetyLayer.evaluate(auroraMessage);
-  if (safety.level === 'blocked') {
-    res.status(400).json({ safe: false, reason: safety.reason, category: safety.category });
-    return;
-  }
-  if (safety.level === 'confirm') {
-    // Return the confirmation prompt to the client so the user can approve/deny.
-    // TODO: wire a proper confirmation round-trip (SSE/WebSocket) so the
-    //       user's YES re-enters the pipeline rather than requiring a new request.
-    res.status(200).json({
-      safe: true,
-      requiresConfirmation: true,
-      confirmationPrompt: safety.confirmationPrompt,
-      category: safety.category,
+  constructor(config: EngineConfig = {}) {
+    this.inputProcessor = new InputProcessor({
+      anthropicApiKey: config.anthropicApiKey,
+      whisperModel: config.whisperModel,
+      defaultLanguage: config.defaultLanguage,
     });
-    return;
+    this.safetyLayer = new SafetyLayer({
+      anthropicApiKey: config.anthropicApiKey,
+      strictMode: config.strictMode,
+    });
   }
 
-  // ── Layer 3: Agent routing ────────────────────────────────────────────────
-  const profile = await memory.getProfile(auroraMessage.originalInput.userId ?? 'anonymous');
-  const agentResponse = await router.route(auroraMessage, profile);
+  async process(input: RawInput): Promise<EngineResponse> {
+    const auroraMessage = await this.inputProcessor.process(input);
+    const safety = await this.safetyLayer.evaluate(auroraMessage);
 
-  // ── Layer 4: Skill dispatch (with confirmation gate) ──────────────────────
-  if (agentResponse.skillCall) {
-    const { name: skillName, args } = agentResponse.skillCall;
-
-    if (confirmationGate.requiresConfirmation(skillName)) {
-      const confirmed = await confirmationGate.requestConfirmation({
-        action: skillName,
-        description: `ejecutar ${skillName}`,
-        reversible: false,
-        target: String(args.contactName ?? args.contact ?? ''),
-      });
-
-      if (!confirmed) {
-        const formatted = formatter.format(
-          'Entendido, acción cancelada.',
-          profile?.preferences.alwaysUseTTS ? 'both' : 'text',
-          profile?.preferences.fontSize ?? 'large',
-          profile?.preferences.voiceSpeed ?? 0.85
-        );
-        res.status(200).json({ ...formatted, safe: true, cancelled: true });
-        return;
-      }
+    if (safety.level === 'blocked') {
+      return {
+        id: uuidv4(),
+        status: 'blocked',
+        message: 'Lo siento, esa acción no está permitida.',
+      };
     }
 
-    // TODO: dispatch skill and append result to the response
-    //       e.g. if (skillName === 'make_call') await AuroraSkills.makeCall(...)
-    console.log(`[aurora-engine] Skill dispatch stub: ${skillName}`, args);
+    if (safety.level === 'confirm') {
+      const confirmationPrompt = safety.confirmationPrompt ?? '¿Confirmas esta acción?';
+      return {
+        id: uuidv4(),
+        status: 'awaiting_confirmation',
+        message: confirmationPrompt,
+        confirmationPrompt,
+        pendingAction: JSON.stringify(auroraMessage),
+      };
+    }
+
+    return {
+      id: uuidv4(),
+      status: 'completed',
+      message: 'Entendido: ' + auroraMessage.content,
+    };
   }
 
-  // ── Layer 5: Response formatting ──────────────────────────────────────────
-  const outputMode = profile?.preferences.alwaysUseTTS ? 'both' : 'text';
-  const formatted = formatter.format(
-    agentResponse.text,
-    outputMode,
-    profile?.preferences.fontSize ?? 'large',
-    profile?.preferences.voiceSpeed ?? 0.85
-  );
+  async confirm(pendingAction: string): Promise<EngineResponse> {
+    const auroraMessage = JSON.parse(pendingAction) as { content: string };
+    return {
+      id: uuidv4(),
+      status: 'completed',
+      message: 'Acción confirmada: ' + auroraMessage.content,
+    };
+  }
 
-  res.status(200).json({ ...formatted, safe: true });
-});
-
-/**
- * GET /health
- * Simple liveness probe.
- */
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// ── Error handler ──────────────────────────────────────────────────────────
-
-// TODO: add structured error logging (e.g. Pino or Winston) before production
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[aurora-engine] Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-// ── Start ──────────────────────────────────────────────────────────────────
-
-app.listen(PORT, () => {
-  console.log(`Aurora engine running on http://localhost:${PORT}`);
-  console.log('POST /message  — send a message through the Aurora pipeline');
-  console.log('GET  /health   — liveness probe');
-});
-
-export default app;
+  async cancel(): Promise<EngineResponse> {
+    return {
+      id: uuidv4(),
+      status: 'completed',
+      message: 'Acción cancelada.',
+    };
+  }
+}

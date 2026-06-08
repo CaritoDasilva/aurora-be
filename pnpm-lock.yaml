@@ -17,30 +17,21 @@ importers:
 
   apps/aurora-engine:
     dependencies:
-      '@aurora/aurora-skills':
-        specifier: workspace:*
-        version: link:../../packages/aurora-skills
-      '@aurora/channel-router':
-        specifier: workspace:*
-        version: link:../../packages/channel-router
-      '@aurora/confirmation-gate':
-        specifier: workspace:*
-        version: link:../../packages/confirmation-gate
       '@aurora/input-processor':
         specifier: workspace:*
         version: link:../../packages/input-processor
-      '@aurora/memory-plugin':
-        specifier: workspace:*
-        version: link:../../packages/memory-plugin
-      '@aurora/response-formatter':
-        specifier: workspace:*
-        version: link:../../packages/response-formatter
       '@aurora/safety-layer':
         specifier: workspace:*
         version: link:../../packages/safety-layer
+      dotenv:
+        specifier: ^16.0.0
+        version: 16.6.1
       express:
         specifier: ^4.18.0
         version: 4.22.2
+      uuid:
+        specifier: ^9.0.0
+        version: 9.0.1
     devDependencies:
       '@types/express':
         specifier: ^4.17.0
@@ -48,6 +39,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.41
+      '@types/uuid':
+        specifier: ^9.0.0
+        version: 9.0.8
       ts-node:
         specifier: ^10.9.0
         version: 10.9.2(@types/node@20.19.41)(typescript@5.9.3)
