@@ -70,7 +70,7 @@ export class ChannelRouter {
       model: this.config.model,
       max_tokens: this.config.maxTokens,
       system: systemPrompt,
-      messages: [{ role: 'user', content: msg.text }],
+      messages: [{ role: 'user', content: msg.content }],
     });
 
     const firstBlock = response.content[0];

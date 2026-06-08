@@ -19,7 +19,7 @@
  *   [HTTP Response]
  */
 
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Application, Request, Response, NextFunction } from 'express';
 import { InputProcessor, RawInput } from '@aurora/input-processor';
 import { SafetyLayer } from '@aurora/safety-layer';
 import { ConfirmationGate } from '@aurora/confirmation-gate';
@@ -30,7 +30,7 @@ import * as AuroraSkills from '@aurora/aurora-skills';
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 
-const app = express();
+const app: Application = express();
 app.use(express.json());
 
 const inputProcessor = new InputProcessor();
@@ -59,13 +59,27 @@ const PORT = Number(process.env.AURORA_PORT ?? 3000);
  *
  * Response: { text: string, ssml?: string, safe: boolean, emergency?: boolean }
  */
-app.post('/message', async (req: Request, res: Response) => {
-  const rawInput = req.body as RawInput;
+interface MessageBody {
+  type: RawInput['type'];
+  payload: string;
+  userId?: string;
+  language?: string;
+}
 
-  if (!rawInput?.type || !rawInput?.payload) {
+app.post('/message', async (req: Request, res: Response) => {
+  const body = req.body as MessageBody;
+
+  if (!body?.type || !body?.payload) {
     res.status(400).json({ error: 'Missing required fields: type, payload' });
     return;
   }
+
+  const rawInput: RawInput = {
+    type: body.type,
+    text: body.payload,
+    userId: body.userId,
+    language: body.language,
+  };
 
   // ── Layer 1: Input normalization ──────────────────────────────────────────
   let auroraMessage;
@@ -76,29 +90,27 @@ app.post('/message', async (req: Request, res: Response) => {
     return;
   }
 
-  // ── Layer 2: Safety validation ────────────────────────────────────────────
-  const safety = await safetyLayer.validate(auroraMessage);
-  if (safety.emergency) {
-    // TODO: trigger emergency protocol (alert contacts, open emergency UI)
-    const contacts = await AuroraSkills.getEmergencyContacts(
-      auroraMessage.userId ?? 'anonymous',
-      memory
-    );
-    res.status(200).json({
-      safe: false,
-      emergency: true,
-      message: 'Activating emergency protocol',
-      emergencyContacts: contacts,
-    });
+  // ── Layer 2: Safety classification ───────────────────────────────────────
+  const safety = await safetyLayer.evaluate(auroraMessage);
+  if (safety.level === 'blocked') {
+    res.status(400).json({ safe: false, reason: safety.reason, category: safety.category });
     return;
   }
-  if (!safety.safe) {
-    res.status(400).json({ safe: false, reason: safety.reason });
+  if (safety.level === 'confirm') {
+    // Return the confirmation prompt to the client so the user can approve/deny.
+    // TODO: wire a proper confirmation round-trip (SSE/WebSocket) so the
+    //       user's YES re-enters the pipeline rather than requiring a new request.
+    res.status(200).json({
+      safe: true,
+      requiresConfirmation: true,
+      confirmationPrompt: safety.confirmationPrompt,
+      category: safety.category,
+    });
     return;
   }
 
   // ── Layer 3: Agent routing ────────────────────────────────────────────────
-  const profile = await memory.getProfile(auroraMessage.userId ?? 'anonymous');
+  const profile = await memory.getProfile(auroraMessage.originalInput.userId ?? 'anonymous');
   const agentResponse = await router.route(auroraMessage, profile);
 
   // ── Layer 4: Skill dispatch (with confirmation gate) ──────────────────────
