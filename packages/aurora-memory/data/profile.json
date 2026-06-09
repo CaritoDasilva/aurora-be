@@ -1,0 +1,39 @@
+{
+  "userId": "default",
+  "name": "Ana",
+  "lastName": "López",
+  "language": "es",
+  "age": 68,
+  "medications": [
+    {
+      "name": "Metformina",
+      "dose": "500mg",
+      "schedule": ["8:00", "20:00"],
+      "notes": "con comida"
+    },
+    {
+      "name": "Atorvastatina",
+      "dose": "20mg",
+      "schedule": ["21:00"]
+    }
+  ],
+  "emergencyContacts": [
+    {
+      "name": "María García",
+      "phone": "+1555000001",
+      "relationship": "hija"
+    },
+    {
+      "name": "Dr. Ramírez",
+      "phone": "+1555000002",
+      "relationship": "médico"
+    }
+  ],
+  "preferences": {
+    "voiceSpeed": "slow",
+    "fontSize": "xlarge",
+    "confirmAllActions": false
+  },
+  "createdAt": "2026-01-01T00:00:00Z",
+  "updatedAt": "2026-01-01T00:00:00Z"
+}

@@ -24,6 +24,7 @@ export interface AuroraMessage {
   detectedLanguage?: string;
   processingTimeMs?: number;
   timestamp: Date;
+  systemPrompt?: string;    // Injected by MemoryPlugin before skill execution
 }
 
 export interface ProcessorConfig {
