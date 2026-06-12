@@ -2,16 +2,17 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { SkillsConfig, SkillResult } from './types.js';
 import { findContact } from './contacts.js';
+import { sanitizePhone } from './phone.js';
 
 const execAsync = promisify(exec);
 
 export async function sendSMS(target: string, body: string, config: SkillsConfig): Promise<SkillResult> {
   const contact = await findContact(target, config.contactsFilePath);
-  const phone = contact?.phone ?? target;
+  const phone = sanitizePhone(contact?.phone ?? target);
   const name = contact?.name ?? target;
 
   if (!phone) {
-    return { success: false, message: `No se encontró un número para ${name}` };
+    return { success: false, message: `No tengo un número válido para ${name}` };
   }
 
   const accountSid = config.twilioAccountSid ?? process.env['TWILIO_ACCOUNT_SID'];

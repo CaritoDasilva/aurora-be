@@ -25,7 +25,7 @@ export async function webSearch(query: string): Promise<SkillResult> {
 
   // Fallback: open search in browser
   try {
-    await execAsync(`cmd /c start https://www.google.com/search?q=${encodeURIComponent(query)}`);
+    await execAsync(`cmd /c start "" "https://www.google.com/search?q=${encodeURIComponent(query)}"`);
     return { success: true, message: `Abriendo búsqueda para: ${query}` };
   } catch (err) {
     return { success: false, message: `No se pudo buscar: ${String(err)}` };
