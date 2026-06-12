@@ -5,7 +5,8 @@
   "description": "Aurora AI assistant engine backend — built for people aged 60+",
   "scripts": {
     "build": "pnpm -r run build",
-    "dev": "pnpm -r --parallel run dev"
+    "dev": "pnpm -r --parallel run dev",
+    "test": "pnpm -r run test"
   },
   "engines": {
     "node": ">=18.0.0",
