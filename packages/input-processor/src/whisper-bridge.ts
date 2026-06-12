@@ -1,4 +1,6 @@
 import { spawn } from 'child_process';
+import { randomUUID } from 'node:crypto';
+import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -14,7 +16,9 @@ export async function transcribeAudio(
   model: string = 'small',
   language?: string
 ): Promise<TranscriptionResult> {
-  const scriptPath = path.join(process.cwd(), '.whisper_transcribe.py');
+  // Unique temp path: concurrent transcriptions must not clobber each other,
+  // and the helper script must never land inside the project directory.
+  const scriptPath = path.join(os.tmpdir(), `aurora-whisper-${randomUUID()}.py`);
   const pythonScript = `
 import sys
 import json
@@ -27,11 +31,15 @@ language = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != 'auto' else None
 model = WhisperModel(model_name, device='cpu', compute_type='int8')
 segments, info = model.transcribe(audio_path, language=language, beam_size=5)
 
+# transcribe() returns a lazy generator — materialize it once and derive
+# both the full text and the segment list from the same pass.
+segs = list(segments)
+
 result = {
-  'text': ' '.join([s.text for s in segments]),
+  'text': ' '.join([s.text for s in segs]),
   'language': info.language,
   'confidence': float(info.language_probability),
-  'segments': [{'start': s.start, 'end': s.end, 'text': s.text} for s in list(model.transcribe(audio_path, language=language)[0])]
+  'segments': [{'start': s.start, 'end': s.end, 'text': s.text} for s in segs]
 }
 print(json.dumps(result))
 `;
