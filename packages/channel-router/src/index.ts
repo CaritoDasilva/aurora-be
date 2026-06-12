@@ -14,7 +14,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { AuroraMessage } from '@aurora/input-processor';
-import type { UserProfile } from '@aurora/memory-plugin';
+import type { UserProfile } from '@aurora/aurora-memory';
 
 export interface RouteConfig {
   /** Which channel adapter to use. Aurora only ships 'aurora-api' for now. */
@@ -46,12 +46,24 @@ const DEFAULT_CONFIG: RouteConfig = {
 };
 
 export class ChannelRouter {
-  private client: Anthropic;
+  private client?: Anthropic;
   private config: RouteConfig;
 
   constructor(config: Partial<RouteConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+
+  // Lazy init: constructing the router without ANTHROPIC_API_KEY must not
+  // throw — the key is only required once a message is actually routed.
+  private getClient(): Anthropic {
+    if (!this.client) {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        throw new Error('ANTHROPIC_API_KEY is required to route messages');
+      }
+      this.client = new Anthropic({ apiKey });
+    }
+    return this.client;
   }
 
   /**
@@ -66,7 +78,7 @@ export class ChannelRouter {
 
     // TODO: include tool definitions for Aurora skills so Claude can call them
     //       via the Anthropic tool_use API (instead of text-based dispatch)
-    const response = await this.client.messages.create({
+    const response = await this.getClient().messages.create({
       model: this.config.model,
       max_tokens: this.config.maxTokens,
       system: systemPrompt,
@@ -92,8 +104,9 @@ export class ChannelRouter {
 
   private buildSystemPrompt(profile?: UserProfile | null): string {
     const userName = profile?.name ?? 'the user';
-    const language = profile?.preferences.language ?? 'es-ES';
-    const contacts = profile?.contacts.map((c) => c.name).join(', ') ?? 'none';
+    const language = profile?.language ?? 'es';
+    const contacts =
+      profile?.emergencyContacts.map((c) => `${c.name} (${c.relationship})`).join(', ') || 'none';
 
     return `You are Aurora, a kind and patient AI assistant for elderly people.
 You are talking with ${userName}. Always speak in ${language}.

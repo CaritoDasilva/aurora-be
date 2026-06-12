@@ -18,10 +18,6 @@ export interface SkillsConfig {
   contactsFilePath?: string;
 }
 
-export type ActionCategory =
-  | 'call' | 'sms' | 'email'
-  | 'file_delete' | 'file_write'
-  | 'purchase' | 'payment'
-  | 'settings' | 'install'
-  | 'reminder' | 'calendar'
-  | 'query' | 'navigation' | 'other';
+// Single source of truth for the category taxonomy: the safety-layer
+// classifier owns it; skills only consume it.
+export type { ActionCategory } from '@aurora/safety-layer';

@@ -10,6 +10,7 @@
     "test": "tsc && node --test dist"
   },
   "dependencies": {
+    "@aurora/safety-layer": "workspace:*",
     "node-notifier": "^10.0.0",
     "twilio": "^4.0.0"
   },
