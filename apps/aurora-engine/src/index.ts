@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { InputProcessor } from '@aurora/input-processor';
 import { SafetyLayer } from '@aurora/safety-layer';
 import type { ActionCategory } from '@aurora/safety-layer';
@@ -51,7 +51,7 @@ export class AuroraEngine {
         'blocked'
       );
       return {
-        id: uuidv4(),
+        id: randomUUID(),
         status: 'blocked',
         message: 'Lo siento, esa acción no está permitida.',
       };
@@ -61,7 +61,7 @@ export class AuroraEngine {
       const confirmationPrompt = safety.confirmationPrompt ?? '¿Confirmas esta acción?';
       const pending: PendingAction = { content: auroraMessage.content, category: safety.category };
       return {
-        id: uuidv4(),
+        id: randomUUID(),
         status: 'awaiting_confirmation',
         message: confirmationPrompt,
         confirmationPrompt,
@@ -77,7 +77,7 @@ export class AuroraEngine {
       'completed'
     );
     return {
-      id: uuidv4(),
+      id: randomUUID(),
       status: 'completed',
       message: result.message,
     };
@@ -88,7 +88,7 @@ export class AuroraEngine {
     const result = await this.skillsExecutor.execute(category ?? 'other', content);
     await this.memoryPlugin.saveExchange(content, result.message, category ?? 'other', 'completed');
     return {
-      id: uuidv4(),
+      id: randomUUID(),
       status: 'completed',
       message: result.message,
     };
@@ -96,7 +96,7 @@ export class AuroraEngine {
 
   async cancel(): Promise<EngineResponse> {
     return {
-      id: uuidv4(),
+      id: randomUUID(),
       status: 'completed',
       message: 'Acción cancelada.',
     };
