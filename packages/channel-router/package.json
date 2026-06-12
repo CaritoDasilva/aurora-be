@@ -6,12 +6,13 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "tsc && node --test dist"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
-    "@aurora/input-processor": "workspace:*",
-    "@aurora/memory-plugin": "workspace:*"
+    "@aurora/aurora-memory": "workspace:*",
+    "@aurora/input-processor": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
