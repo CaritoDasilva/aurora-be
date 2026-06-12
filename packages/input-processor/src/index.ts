@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { RawInput, AuroraMessage, ProcessorConfig } from './types.js';
 import { transcribeAudio } from './whisper-bridge.js';
 import { describeImage } from './vision-bridge.js';
@@ -64,7 +64,7 @@ export class InputProcessor {
     const processingTimeMs = Date.now() - startTime;
 
     return {
-      id: uuidv4(),
+      id: randomUUID(),
       type: input.type,
       content,
       originalInput: input,

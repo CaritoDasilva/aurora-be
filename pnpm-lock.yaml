@@ -35,9 +35,6 @@ importers:
       express:
         specifier: ^4.18.0
         version: 4.22.2
-      uuid:
-        specifier: ^9.0.0
-        version: 9.0.1
     devDependencies:
       '@types/express':
         specifier: ^4.17.0
@@ -45,9 +42,6 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.41
-      '@types/uuid':
-        specifier: ^9.0.0
-        version: 9.0.8
       ts-node:
         specifier: ^10.9.0
         version: 10.9.2(@types/node@20.19.41)(typescript@5.9.3)
@@ -168,16 +162,10 @@ importers:
       openai:
         specifier: ^4.0.0
         version: 4.104.0
-      uuid:
-        specifier: ^9.0.0
-        version: 9.0.1
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.41
-      '@types/uuid':
-        specifier: ^9.0.0
-        version: 9.0.8
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -565,9 +553,6 @@ packages:
 
   '@types/serve-static@1.15.10':
     resolution: {integrity: sha512-tRs1dB+g8Itk72rlSI2ZrW6vZg0YrLI81iQSTkMmOqnqCaNr/8Ek4VwWcN5vZgCYWbg/JJSGBlUaYGAOP73qBw==}
-
-  '@types/uuid@9.0.8':
-    resolution: {integrity: sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA==}
 
   '@typescript-eslint/eslint-plugin@8.60.1':
     resolution: {integrity: sha512-JQ4S5GB0tfjO8BuJ4fcX+HodkzJjYBV+7OJ+wLygaX7OGQ7FudyHL4NSCA6ob+w3Yn+5MkKIozOwQhXeM7opVg==}
@@ -1572,11 +1557,6 @@ packages:
     deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
-  uuid@9.0.1:
-    resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
-    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
-    hasBin: true
-
   v8-compile-cache-lib@3.0.1:
     resolution: {integrity: sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg==}
 
@@ -2036,8 +2016,6 @@ snapshots:
       '@types/http-errors': 2.0.5
       '@types/node': 24.13.1
       '@types/send': 0.17.6
-
-  '@types/uuid@9.0.8': {}
 
   '@typescript-eslint/eslint-plugin@8.60.1(@typescript-eslint/parser@8.60.1(eslint@10.4.1)(typescript@6.0.3))(eslint@10.4.1)(typescript@6.0.3)':
     dependencies:
@@ -3052,8 +3030,6 @@ snapshots:
   utils-merge@1.0.1: {}
 
   uuid@8.3.2: {}
-
-  uuid@9.0.1: {}
 
   v8-compile-cache-lib@3.0.1: {}
 

@@ -1,3 +1,6 @@
+// node:crypto import: the global `crypto` object only exists on Node >=19,
+// but engines declares >=18.
+import { randomUUID } from 'node:crypto';
 import { loadProfile, saveProfile as _saveProfile, updateProfile as _updateProfile } from './profile.js';
 import { saveEntry, getRecentHistory } from './history.js';
 import { buildSystemPrompt } from './context.js';
@@ -33,7 +36,7 @@ export class MemoryPlugin {
     status: string
   ): Promise<void> {
     const entry: ConversationEntry = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       timestamp: new Date().toISOString(),
       userMessage,
       auroraResponse,
