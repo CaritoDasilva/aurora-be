@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
-    "test": "ts-node src/test.ts"
+    "test": "tsc && node --test dist/validate-profile.test.js",
+    "test:pipeline": "ts-node src/test.ts"
   },
   "dependencies": {
     "@aurora/aurora-memory": "workspace:*",
