@@ -13,15 +13,23 @@ export async function loadContacts(filePath?: string): Promise<Contact[]> {
   }
 }
 
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
 export async function findContact(nameOrRelationship: string, filePath?: string): Promise<Contact | null> {
   const contacts = await loadContacts(filePath);
-  const q = nameOrRelationship.toLowerCase().trim();
+  const queryWords = normalize(nameOrRelationship).split(/\s+/).filter(Boolean);
   return (
-    contacts.find(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.relationship?.toLowerCase().includes(q) ?? false)
-    ) ?? null
+    contacts.find((c) => {
+      const nameWords = normalize(c.name).split(/\s+/);
+      const relationship = c.relationship ? normalize(c.relationship) : undefined;
+      return queryWords.some((w) => nameWords.includes(w) || w === relationship);
+    }) ?? null
   );
 }
 

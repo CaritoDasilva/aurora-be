@@ -6,3 +6,4 @@ dist/
 *.tsbuildinfo
 coverage/
 .DS_Store
+packages/aurora-memory/data/history.json

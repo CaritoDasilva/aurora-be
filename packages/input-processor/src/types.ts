@@ -6,6 +6,10 @@ export interface RawInput {
   text?: string;
   // For voice: path to audio file (mp3, wav, m4a, ogg)
   audioPath?: string;
+  // For voice over HTTP (no server-local file): base64-encoded audio bytes.
+  // audioFormat is the source extension without the dot (e.g. 'm4a'); defaults to 'm4a'.
+  audioBase64?: string;
+  audioFormat?: string;
   // For image: path to image file OR base64 string
   imagePath?: string;
   imageBase64?: string;

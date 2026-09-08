@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express, { Application, Request, Response, NextFunction } from 'express';
 import { AuroraEngine } from './index.js';
+import type { EngineConfig } from './types.js';
 import { validateProfileUpdates } from './validate-profile.js';
 import type { RawInput } from '@aurora/input-processor';
 
@@ -11,6 +12,7 @@ const HOST = process.env.AURORA_HOST ?? '127.0.0.1';
 const engine = new AuroraEngine({
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   strictMode: process.env.STRICT_MODE === 'true',
+  whisperModel: process.env.WHISPER_MODEL as EngineConfig['whisperModel'] | undefined,
 });
 
 const app: Application = express();

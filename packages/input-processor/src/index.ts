@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import { RawInput, AuroraMessage, ProcessorConfig } from './types.js';
 import { transcribeAudio } from './whisper-bridge.js';
 import { describeImage } from './vision-bridge.js';
@@ -31,15 +34,32 @@ export class InputProcessor {
         break;
 
       case 'voice': {
-        if (!input.audioPath) throw new Error('Voice input requires audioPath');
-        const transcription = await transcribeAudio(
-          input.audioPath,
-          this.config.whisperModel,
-          input.language
-        );
-        content = transcription.text.trim();
-        confidence = transcription.confidence;
-        detectedLanguage = transcription.language;
+        let audioPath = input.audioPath;
+        let tempAudioPath: string | undefined;
+        if (!audioPath) {
+          if (!input.audioBase64) {
+            throw new Error('Voice input requires audioPath or audioBase64');
+          }
+          const ext = (input.audioFormat || 'm4a').replace(/^\./, '');
+          tempAudioPath = path.join(os.tmpdir(), `aurora-voice-${randomUUID()}.${ext}`);
+          await fs.writeFile(tempAudioPath, Buffer.from(input.audioBase64, 'base64'));
+          audioPath = tempAudioPath;
+        }
+
+        try {
+          const transcription = await transcribeAudio(
+            audioPath,
+            this.config.whisperModel,
+            input.language
+          );
+          content = transcription.text.trim();
+          confidence = transcription.confidence;
+          detectedLanguage = transcription.language;
+        } finally {
+          if (tempAudioPath) {
+            await fs.unlink(tempAudioPath).catch(() => {});
+          }
+        }
         break;
       }
 

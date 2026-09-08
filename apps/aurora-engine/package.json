@@ -7,9 +7,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "ts-node src/server.ts",
+    "dev": "tsx src/server.ts",
     "test": "tsc && node --test dist/validate-profile.test.js",
-    "test:pipeline": "ts-node src/test.ts"
+    "test:pipeline": "tsx src/test.ts"
   },
   "dependencies": {
     "@aurora/aurora-memory": "workspace:*",
@@ -22,7 +22,7 @@
   "devDependencies": {
     "@types/express": "^4.17.0",
     "@types/node": "^20.0.0",
-    "ts-node": "^10.9.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.4.0"
   }
 }
