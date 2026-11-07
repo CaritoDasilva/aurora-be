@@ -6,9 +6,9 @@ import { SkillsExecutor } from '@aurora/aurora-skills';
 import { MemoryPlugin } from '@aurora/aurora-memory';
 import type { UserProfile } from '@aurora/aurora-memory';
 import type { RawInput } from '@aurora/input-processor';
-import type { EngineConfig, EngineResponse } from './types.js';
+import type { EngineConfig, EngineResponse, ProcessOptions } from './types.js';
 
-export type { EngineConfig, EngineResponse } from './types.js';
+export type { EngineConfig, EngineResponse, ProcessOptions } from './types.js';
 export type { RawInput } from '@aurora/input-processor';
 
 interface PendingAction {
@@ -36,7 +36,7 @@ export class AuroraEngine {
     this.memoryPlugin = new MemoryPlugin();
   }
 
-  async process(input: RawInput): Promise<EngineResponse> {
+  async process(input: RawInput, options: ProcessOptions = {}): Promise<EngineResponse> {
     const memoryContext = await this.memoryPlugin.getContext();
     const auroraMessage = await this.inputProcessor.process(input);
     auroraMessage.systemPrompt = memoryContext.systemPrompt;
@@ -69,7 +69,7 @@ export class AuroraEngine {
       };
     }
 
-    const result = await this.skillsExecutor.execute(safety.category, auroraMessage.content);
+    const result = await this.skillsExecutor.execute(safety.category, auroraMessage.content, options);
     await this.memoryPlugin.saveExchange(
       auroraMessage.content,
       result.message,
@@ -80,17 +80,19 @@ export class AuroraEngine {
       id: randomUUID(),
       status: 'completed',
       message: result.message,
+      action: result.action,
     };
   }
 
-  async confirm(pendingAction: string): Promise<EngineResponse> {
+  async confirm(pendingAction: string, options: ProcessOptions = {}): Promise<EngineResponse> {
     const { content, category } = JSON.parse(pendingAction) as PendingAction;
-    const result = await this.skillsExecutor.execute(category ?? 'other', content);
+    const result = await this.skillsExecutor.execute(category ?? 'other', content, options);
     await this.memoryPlugin.saveExchange(content, result.message, category ?? 'other', 'completed');
     return {
       id: randomUUID(),
       status: 'completed',
       message: result.message,
+      action: result.action,
     };
   }
 

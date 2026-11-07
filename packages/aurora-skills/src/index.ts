@@ -1,15 +1,17 @@
-export type { SkillResult, Contact, SkillsConfig, ActionCategory } from './types.js';
+export type { SkillResult, Contact, SkillsConfig, ActionCategory, NativeAction } from './types.js';
 export { loadContacts, findContact, addContact } from './contacts.js';
 export { makeCall } from './call.js';
 export { sendSMS } from './sms.js';
 export { setReminder } from './reminder.js';
 export { webSearch } from './search.js';
+export { planCall, planSMS, planReminder, extractSmsBody, cleanReminderText } from './native.js';
 
 import type { SkillsConfig, SkillResult, ActionCategory } from './types.js';
 import { makeCall } from './call.js';
 import { sendSMS } from './sms.js';
 import { setReminder } from './reminder.js';
 import { webSearch } from './search.js';
+import { planCall, planSMS, planReminder, extractSmsBody } from './native.js';
 
 export class SkillsExecutor {
   private config: SkillsConfig;
@@ -23,7 +25,29 @@ export class SkillsExecutor {
     };
   }
 
-  async execute(category: ActionCategory, content: string): Promise<SkillResult> {
+  /**
+   * `options.native` = true cuando el cliente es la app móvil: call/sms/reminder
+   * no se ejecutan en el servidor, se devuelven como `result.action`.
+   */
+  async execute(
+    category: ActionCategory,
+    content: string,
+    options: { native?: boolean } = {}
+  ): Promise<SkillResult> {
+    if (options.native) {
+      switch (category) {
+        case 'call':
+          return planCall(extractTarget(content), this.config);
+        case 'sms':
+          return planSMS(extractTarget(content), extractSmsBody(content), this.config);
+        case 'reminder':
+        case 'calendar':
+          return planReminder(content, extractTime(content));
+        default:
+          break; // el resto (búsquedas, etc.) sigue ejecutándose en el servidor
+      }
+    }
+
     switch (category) {
       case 'call':
         return makeCall(extractTarget(content), this.config);

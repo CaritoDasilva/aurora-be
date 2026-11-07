@@ -22,7 +22,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Aurora-Client');
   next();
 });
 
@@ -35,10 +35,16 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// La app móvil ejecuta call/sms/reminder en el teléfono: lo indica con
+// `native: true` en el cuerpo o con el header `x-aurora-client: mobile`.
+function wantsNative(req: Request): boolean {
+  return req.body?.native === true || req.header('x-aurora-client') === 'mobile';
+}
+
 app.post('/process', async (req: Request, res: Response) => {
   try {
-    const input = req.body as RawInput;
-    const response = await engine.process(input);
+    const { native: _native, ...input } = req.body as RawInput & { native?: boolean };
+    const response = await engine.process(input as RawInput, { native: wantsNative(req) });
     res.json(response);
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -52,7 +58,7 @@ app.post('/confirm', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Missing pendingAction' });
       return;
     }
-    const response = await engine.confirm(pendingAction);
+    const response = await engine.confirm(pendingAction, { native: wantsNative(req) });
     res.json(response);
   } catch (err) {
     res.status(500).json({ error: String(err) });

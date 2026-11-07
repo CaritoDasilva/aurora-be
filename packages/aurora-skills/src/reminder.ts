@@ -1,6 +1,6 @@
 import type { SkillResult } from './types.js';
 
-function parseTime(timeStr: string): Date | null {
+export function parseTime(timeStr: string): Date | null {
   const now = new Date();
 
   // "en X minutos"
