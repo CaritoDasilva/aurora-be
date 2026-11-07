@@ -115,6 +115,15 @@ Con `ANTHROPIC_API_KEY`, los saludos, preguntas y conversación libre las respon
 ni SMS por su cuenta: si sugiere una, pasa por la misma confirmación. Sin API key, o si el agente falla,
 el motor responde como antes con las habilidades locales.
 
+### Login (app móvil)
+
+`POST /auth/request-code {phone}` → `POST /auth/verify-code {phone, code}` devuelve un `token`
+(24 h) que la app envía como `Authorization: Bearer`. Solo celulares chilenos; el código vence a los
+5 min, sirve una vez, permite 5 intentos y se puede reenviar cada 30 s. Hoy el código se imprime en la
+consola del servidor o se fija con `AURORA_DEMO_CODE`; para SMS real se implementa `CodeSender`
+(ver `apps/aurora-engine/src/auth.ts`). Con `AURORA_REQUIRE_AUTH=true` las rutas exigen sesión.
+Las sesiones viven en memoria: se pierden al reiniciar el servidor.
+
 ### Send a test message
 
 ```bash
