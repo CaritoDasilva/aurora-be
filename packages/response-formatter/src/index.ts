@@ -82,7 +82,7 @@ export class ResponseFormatter {
     // TODO: use an NLP sentence tokenizer for more accurate splitting,
     //       especially for Spanish text with abbreviations (Sr., Dra., etc.)
     const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
-    return sentences.slice(0, maxSentences).join(' ').trim();
+    return sentences.slice(0, maxSentences).map((s) => s.trim()).join(' ').trim();
   }
 
   /** Wraps plain text in SSML with Aurora's preferred voice settings */

@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "tsc && node --test dist"
+    "test": "tsc && node --test \"dist/**/*.test.js\""
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

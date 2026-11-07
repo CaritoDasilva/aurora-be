@@ -108,6 +108,13 @@ pnpm dev
 
 The engine will be available at `http://localhost:3000`.
 
+### Conversación con el agente
+
+Con `ANTHROPIC_API_KEY`, los saludos, preguntas y conversación libre las responde el agente Claude
+(`@aurora/channel-router`) con el perfil y el historial de la persona. El agente nunca ejecuta llamadas
+ni SMS por su cuenta: si sugiere una, pasa por la misma confirmación. Sin API key, o si el agente falla,
+el motor responde como antes con las habilidades locales.
+
 ### Send a test message
 
 ```bash

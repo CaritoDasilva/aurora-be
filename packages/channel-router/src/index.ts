@@ -23,6 +23,8 @@ export interface RouteConfig {
   model: string;
   /** Max tokens for the agent response */
   maxTokens: number;
+  /** API key; si falta se usa ANTHROPIC_API_KEY (se exige recién al enrutar un mensaje) */
+  apiKey?: string;
 }
 
 export interface AgentResponse {
@@ -40,12 +42,26 @@ export interface AgentResponse {
 
 const DEFAULT_CONFIG: RouteConfig = {
   channel: 'aurora-api',
-  // Use the most capable model for the best experience with elderly users
-  model: 'claude-opus-4-8',
-  maxTokens: 1024,
+  // Configurable con AURORA_MODEL. Respuestas cortas y rápidas importan más que el
+  // tamaño del modelo para una conversación por voz con personas mayores.
+  model: process.env.AURORA_MODEL ?? 'claude-sonnet-5-5',
+  maxTokens: 512,
 };
 
-export class ChannelRouter {
+/** Contrato mínimo que el motor necesita (permite un router falso en los tests). */
+export interface AgentRouter {
+  route(msg: AuroraMessage, profile?: UserProfile | null): Promise<AgentResponse>;
+}
+
+const SKILL_INSTRUCTIONS = `Puedes pedir estas acciones; la persona siempre las confirma antes de que se hagan:
+- make_call(contactName): llamar a un contacto
+- send_sms(contactName, message): enviar un mensaje de texto
+
+Solo si la persona pide claramente una de ellas, termina tu respuesta con una última línea:
+SKILL_CALL: {"name": "make_call", "args": {"contactName": "María"}}
+No inventes contactos ni pidas acciones que la persona no mencionó.`;
+
+export class ChannelRouter implements AgentRouter {
   private client?: Anthropic;
   private config: RouteConfig;
 
@@ -57,7 +73,7 @@ export class ChannelRouter {
   // throw — the key is only required once a message is actually routed.
   private getClient(): Anthropic {
     if (!this.client) {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
+      const apiKey = this.config.apiKey ?? process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
         throw new Error('ANTHROPIC_API_KEY is required to route messages');
       }
@@ -74,7 +90,11 @@ export class ChannelRouter {
    *       conversations without exceeding the context window.
    */
   async route(msg: AuroraMessage, profile?: UserProfile | null): Promise<AgentResponse> {
-    const systemPrompt = this.buildSystemPrompt(profile);
+    // El MemoryPlugin ya arma un prompt en español con perfil, medicamentos,
+    // contactos y conversación reciente: se usa si viene; si no, el prompt base.
+    const systemPrompt = msg.systemPrompt
+      ? `${msg.systemPrompt}\n\n${SKILL_INSTRUCTIONS}`
+      : this.buildSystemPrompt(profile);
 
     // TODO: include tool definitions for Aurora skills so Claude can call them
     //       via the Anthropic tool_use API (instead of text-based dispatch)
@@ -108,22 +128,14 @@ export class ChannelRouter {
     const contacts =
       profile?.emergencyContacts.map((c) => `${c.name} (${c.relationship})`).join(', ') || 'none';
 
-    return `You are Aurora, a kind and patient AI assistant for elderly people.
-You are talking with ${userName}. Always speak in ${language}.
-Be clear, concise, and use simple vocabulary. Never use jargon.
-If the user seems confused, gently repeat the most important part.
+    return `Eres Aurora, una asistente amable y paciente para personas mayores.
+Hablas con ${userName}. Responde siempre en ${language === 'es' ? 'español de Chile' : language}, tratándola de tú.
+Usa frases cortas (máximo 2 oraciones) y palabras simples. Nunca uses tecnicismos.
+Si la persona parece confundida, repite con calma lo más importante.
 
-Known contacts: ${contacts}
+Contactos conocidos: ${contacts}
 
-Available Aurora skills you can request:
-- make_call(contactName) — call a contact
-- send_sms(contactName, message) — send a text message
-- add_medication_reminder(name, dosage, times) — set a medication reminder
-- get_emergency_contacts() — list emergency contacts
-- describe_image(path) — describe what is in an image
-
-If you need to use a skill, end your reply with:
-SKILL_CALL: {"name": "skill_name", "args": {...}}`;
+${SKILL_INSTRUCTIONS}`;
   }
 
   /** Parses an inline SKILL_CALL directive from the agent response text */

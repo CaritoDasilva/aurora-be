@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "tsc && node --test dist"
+    "test": "tsc && node --test \"dist/**/*.test.js\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
