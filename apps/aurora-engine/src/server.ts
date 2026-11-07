@@ -54,7 +54,7 @@ app.post('/process', async (req: Request, res: Response) => {
 app.post('/confirm', async (req: Request, res: Response) => {
   try {
     const { pendingAction } = req.body as { pendingAction: string };
-    if (!pendingAction) {
+    if (typeof pendingAction !== 'string' || !pendingAction) {
       res.status(400).json({ error: 'Missing pendingAction' });
       return;
     }
@@ -65,9 +65,10 @@ app.post('/confirm', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/cancel', async (_req: Request, res: Response) => {
+app.post('/cancel', async (req: Request, res: Response) => {
   try {
-    const response = await engine.cancel();
+    const { pendingAction } = (req.body ?? {}) as { pendingAction?: string };
+    const response = await engine.cancel(pendingAction);
     res.json(response);
   } catch (err) {
     res.status(500).json({ error: String(err) });

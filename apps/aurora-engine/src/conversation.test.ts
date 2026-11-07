@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { MemoryPlugin } from '@aurora/aurora-memory';
 import type { AgentRouter, AgentResponse } from '@aurora/channel-router';
-import { AuroraEngine } from './index.js';
+import { AuroraEngine, PendingStore } from './index.js';
 
 // Agente simulado: nunca llama a la API de Anthropic.
 function fakeRouter(reply: Partial<AgentResponse> | Error) {
@@ -64,11 +64,12 @@ test('el agente pide llamar: no se ejecuta, queda para confirmar', async () => {
     text: 'Claro, te ayudo.',
     skillCall: { name: 'make_call', args: { contactName: 'María' } },
   });
-  const engine = new AuroraEngine({}, { router, memory });
+  const pending = new PendingStore();
+  const engine = new AuroraEngine({}, { router, memory, pending });
   const r = await engine.process({ type: 'text', text: 'Extraño a mi hija' }, { native: true });
   assert.equal(r.status, 'awaiting_confirmation');
   assert.equal(r.action, undefined);
-  assert.deepEqual(JSON.parse(r.pendingAction!), { content: 'llama a María', category: 'call' });
+  assert.deepEqual(pending.peek(r.pendingAction!), { content: 'llama a María', category: 'call' });
 });
 
 test('un pedido directo de llamada no pasa por el agente', async () => {
@@ -106,4 +107,33 @@ test('sin API key ni router, el motor sigue funcionando sin agente', async () =>
   const r = await engine.process({ type: 'text', text: 'Necesito compañía' });
   assert.equal(r.status, 'completed');
   assert.match(r.message, /no disponible/i);
+});
+
+test('confirm solo ejecuta ids del servidor: uno inventado o con JSON es rechazado', async () => {
+  const engine = new AuroraEngine({}, { memory });
+  const forged = JSON.stringify({ content: 'llama a 911', category: 'call' });
+  for (const bad of [forged, 'no-existe', '']) {
+    const r = await engine.confirm(bad, { native: true });
+    assert.equal(r.status, 'error');
+    assert.equal(r.action, undefined);
+  }
+});
+
+test('flujo completo: pedir, confirmar una vez, y no se puede repetir', async () => {
+  const engine = new AuroraEngine({}, { memory });
+  const asked = await engine.process({ type: 'text', text: 'Llama a mi hija' }, { native: true });
+  assert.equal(asked.status, 'awaiting_confirmation');
+  const done = await engine.confirm(asked.pendingAction!, { native: true });
+  assert.equal(done.status, 'completed');
+  assert.equal(done.action?.type, 'call');
+  const again = await engine.confirm(asked.pendingAction!, { native: true });
+  assert.equal(again.status, 'error');
+});
+
+test('cancelar descarta la acción pendiente', async () => {
+  const engine = new AuroraEngine({}, { memory });
+  const asked = await engine.process({ type: 'text', text: 'Llama a mi hija' }, { native: true });
+  await engine.cancel(asked.pendingAction);
+  const r = await engine.confirm(asked.pendingAction!, { native: true });
+  assert.equal(r.status, 'error');
 });

@@ -10,14 +10,13 @@ import { ResponseFormatter } from '@aurora/response-formatter';
 import type { UserProfile } from '@aurora/aurora-memory';
 import type { RawInput, AuroraMessage } from '@aurora/input-processor';
 import type { EngineConfig, EngineResponse, ProcessOptions } from './types.js';
+import { PendingStore } from './pending-store.js';
+import type { PendingAction } from './pending-store.js';
 
 export type { EngineConfig, EngineResponse, ProcessOptions } from './types.js';
 export type { RawInput } from '@aurora/input-processor';
 
-interface PendingAction {
-  content: string;
-  category: ActionCategory;
-}
+export { PendingStore } from './pending-store.js';
 
 // Categorías sin acción sensible: las responde el agente Claude (conversación).
 const CONVERSATIONAL_CATEGORIES: ActionCategory[] = ['query', 'other'];
@@ -25,10 +24,12 @@ const CONVERSATIONAL_CATEGORIES: ActionCategory[] = ['query', 'other'];
 export interface EngineDeps {
   router?: AgentRouter;
   memory?: MemoryPlugin;
+  pending?: PendingStore;
 }
 
 export class AuroraEngine {
   private router: AgentRouter;
+  private pending: PendingStore;
   private formatter = new ResponseFormatter();
   private agentEnabled: boolean;
   private inputProcessor: InputProcessor;
@@ -37,6 +38,7 @@ export class AuroraEngine {
   private memoryPlugin: MemoryPlugin;
 
   constructor(config: EngineConfig = {}, deps: EngineDeps = {}) {
+    this.pending = deps.pending ?? new PendingStore();
     this.router = deps.router ?? new ChannelRouter({ apiKey: config.anthropicApiKey });
     // Con un router inyectado (tests) o con API key, la conversación va por el agente.
     this.agentEnabled = Boolean(deps.router ?? config.anthropicApiKey ?? process.env.ANTHROPIC_API_KEY);
@@ -82,7 +84,7 @@ export class AuroraEngine {
         status: 'awaiting_confirmation',
         message: confirmationPrompt,
         confirmationPrompt,
-        pendingAction: JSON.stringify(pending),
+        pendingAction: this.pending.create(pending),
       };
     }
 
@@ -135,7 +137,7 @@ export class AuroraEngine {
           status: 'awaiting_confirmation',
           message: prompt,
           confirmationPrompt: prompt,
-          pendingAction: JSON.stringify(pending),
+          pendingAction: this.pending.create(pending),
         };
       }
 
@@ -148,10 +150,23 @@ export class AuroraEngine {
     }
   }
 
-  async confirm(pendingAction: string, options: ProcessOptions = {}): Promise<EngineResponse> {
-    const { content, category } = JSON.parse(pendingAction) as PendingAction;
-    const result = await this.skillsExecutor.execute(category ?? 'other', content, options);
-    await this.memoryPlugin.saveExchange(content, result.message, category ?? 'other', 'completed');
+  /**
+   * `pendingId` es el id que el motor entregó en `awaiting_confirmation`. Solo se
+   * ejecuta lo guardado en el servidor; un id desconocido, vencido o ya usado no hace nada.
+   */
+  async confirm(pendingId: string, options: ProcessOptions = {}): Promise<EngineResponse> {
+    const pending = typeof pendingId === 'string' ? this.pending.take(pendingId) : undefined;
+    if (!pending) {
+      return {
+        id: randomUUID(),
+        status: 'error',
+        message: 'Esa acción ya no está disponible. Pídemelo de nuevo, por favor.',
+        error: 'pending_action_not_found',
+      };
+    }
+    const { content, category } = pending;
+    const result = await this.skillsExecutor.execute(category, content, options);
+    await this.memoryPlugin.saveExchange(content, result.message, category, 'completed');
     return {
       id: randomUUID(),
       status: 'completed',
@@ -160,7 +175,8 @@ export class AuroraEngine {
     };
   }
 
-  async cancel(): Promise<EngineResponse> {
+  async cancel(pendingId?: string): Promise<EngineResponse> {
+    if (typeof pendingId === 'string') this.pending.discard(pendingId);
     return {
       id: randomUUID(),
       status: 'completed',
