@@ -29,12 +29,13 @@ async function main() {
   console.log('   Message:', r3.message);
   console.log();
 
-  // 4. Confirm the call from step 2
-  if (r2.status === 'awaiting_confirmation' && r2.pendingAction) {
+  // 4. Confirm the call from step 2 → should return a native skillCall
+  if (r2.status === 'awaiting_confirmation' && r2.pendingActionId) {
     console.log('4. Confirming the call from step 2');
-    const r4 = await engine.confirm(r2.pendingAction);
+    const r4 = await engine.confirm(r2.pendingActionId);
     console.log('   Status:', r4.status);
     console.log('   Message:', r4.message);
+    console.log('   SkillCall:', r4.skillCall);
   } else {
     console.log('4. (Skipped — step 2 did not return a pending action)');
   }

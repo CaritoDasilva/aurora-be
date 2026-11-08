@@ -1,26 +1,32 @@
 import { randomUUID } from 'node:crypto';
 import { InputProcessor } from '@aurora/input-processor';
 import { SafetyLayer } from '@aurora/safety-layer';
-import type { ActionCategory } from '@aurora/safety-layer';
-import { SkillsExecutor } from '@aurora/aurora-skills';
+import { SkillsExecutor, buildNativeInstruction } from '@aurora/aurora-skills';
 import { MemoryPlugin } from '@aurora/aurora-memory';
 import type { UserProfile } from '@aurora/aurora-memory';
 import type { RawInput } from '@aurora/input-processor';
-import type { EngineConfig, EngineResponse } from './types.js';
+import { PendingActionStore } from './pending-actions.js';
+import type { DeviceResultReport, EngineConfig, EngineResponse } from './types.js';
 
-export type { EngineConfig, EngineResponse } from './types.js';
+export type { EngineConfig, EngineResponse, DeviceResultReport } from './types.js';
 export type { RawInput } from '@aurora/input-processor';
 
-interface PendingAction {
-  content: string;
-  category: ActionCategory;
-}
-
+/**
+ * Orquestador del pipeline Aurora.
+ *
+ * División de responsabilidades (según la arquitectura de la tesis):
+ *   - El backend DECIDE: normaliza la entrada, evalúa seguridad y
+ *     construye la instrucción a ejecutar.
+ *   - El dispositivo EJECUTA: las acciones nativas (llamada, SMS,
+ *     recordatorio) se devuelven como `skillCall` y las ejecuta la app
+ *     móvil con expo-linking / expo-sms / expo-notifications.
+ */
 export class AuroraEngine {
   private inputProcessor: InputProcessor;
   private safetyLayer: SafetyLayer;
   private skillsExecutor: SkillsExecutor;
   private memoryPlugin: MemoryPlugin;
+  private pendingActions: PendingActionStore;
 
   constructor(config: EngineConfig = {}) {
     this.inputProcessor = new InputProcessor({
@@ -34,6 +40,7 @@ export class AuroraEngine {
     });
     this.skillsExecutor = new SkillsExecutor();
     this.memoryPlugin = new MemoryPlugin();
+    this.pendingActions = new PendingActionStore();
   }
 
   async process(input: RawInput): Promise<EngineResponse> {
@@ -58,17 +65,28 @@ export class AuroraEngine {
     }
 
     if (safety.level === 'confirm') {
+      // La acción queda guardada EN EL SERVIDOR: el cliente solo recibe
+      // un ID opaco de un solo uso. Nadie puede fabricar una acción
+      // arbitraria y enviarla a /confirm.
+      const pending = this.pendingActions.create(auroraMessage.content, safety.category);
       const confirmationPrompt = safety.confirmationPrompt ?? '¿Confirmas esta acción?';
-      const pending: PendingAction = { content: auroraMessage.content, category: safety.category };
       return {
         id: randomUUID(),
         status: 'awaiting_confirmation',
         message: confirmationPrompt,
         confirmationPrompt,
-        pendingAction: JSON.stringify(pending),
+        pendingActionId: pending.id,
       };
     }
 
+    // Acciones seguras que se ejecutan EN EL DISPOSITIVO (recordatorios):
+    // no requieren confirmación, pero la ejecución igual es nativa.
+    if (safety.category === 'reminder' || safety.category === 'calendar') {
+      return this.dispatchNative(safety.category, auroraMessage.content);
+    }
+
+    // Resto de acciones seguras (consultas, navegación): se responden
+    // desde el servidor como hasta ahora.
     const result = await this.skillsExecutor.execute(safety.category, auroraMessage.content);
     await this.memoryPlugin.saveExchange(
       auroraMessage.content,
@@ -83,15 +101,26 @@ export class AuroraEngine {
     };
   }
 
-  async confirm(pendingAction: string): Promise<EngineResponse> {
-    const { content, category } = JSON.parse(pendingAction) as PendingAction;
-    const result = await this.skillsExecutor.execute(category ?? 'other', content);
-    await this.memoryPlugin.saveExchange(content, result.message, category ?? 'other', 'completed');
-    return {
-      id: randomUUID(),
-      status: 'completed',
-      message: result.message,
-    };
+  async confirm(pendingActionId: string): Promise<EngineResponse> {
+    const pending = this.pendingActions.consume(pendingActionId);
+    if (!pending) {
+      return {
+        id: randomUUID(),
+        status: 'error',
+        message: 'Esa acción ya no está disponible (expiró o ya se procesó). ¿Me la repites?',
+      };
+    }
+    return this.dispatchNative(pending.category, pending.content);
+  }
+
+  /** Registra el resultado de la ejecución nativa reportado por el dispositivo. */
+  async reportResult(report: DeviceResultReport): Promise<void> {
+    await this.memoryPlugin.saveExchange(
+      `[ejecución en dispositivo] ${report.skillName}`,
+      report.message,
+      'device_execution',
+      report.success ? 'completed' : 'error'
+    );
   }
 
   async cancel(): Promise<EngineResponse> {
@@ -108,5 +137,25 @@ export class AuroraEngine {
 
   async updateProfile(updates: Partial<UserProfile>): Promise<UserProfile> {
     return this.memoryPlugin.updateProfile(updates);
+  }
+
+  /** Construye la instrucción nativa y la devuelve con el mensaje para la usuaria. */
+  private async dispatchNative(
+    category: Parameters<typeof buildNativeInstruction>[0],
+    content: string
+  ): Promise<EngineResponse> {
+    const result = await buildNativeInstruction(category, content);
+    await this.memoryPlugin.saveExchange(
+      content,
+      result.userMessage,
+      category,
+      result.ok ? 'completed' : 'error'
+    );
+    return {
+      id: randomUUID(),
+      status: result.ok ? 'completed' : 'error',
+      message: result.userMessage,
+      skillCall: result.ok ? result.instruction : undefined,
+    };
   }
 }

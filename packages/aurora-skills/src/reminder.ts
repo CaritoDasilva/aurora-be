@@ -1,6 +1,6 @@
 import type { SkillResult } from './types.js';
 
-function parseTime(timeStr: string): Date | null {
+export function parseReminderTime(timeStr: string): Date | null {
   const now = new Date();
 
   // "en X minutos"
@@ -50,7 +50,7 @@ function parseTime(timeStr: string): Date | null {
 }
 
 export async function setReminder(text: string, timeStr?: string): Promise<SkillResult> {
-  const targetTime = timeStr ? parseTime(timeStr) : null;
+  const targetTime = timeStr ? parseReminderTime(timeStr) : null;
 
   const notify = () => {
     // Dynamic import to avoid hard failure if node-notifier is unavailable
