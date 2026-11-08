@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express, { Application, Request, Response, NextFunction } from 'express';
 import { AuroraEngine } from './index.js';
-import type { EngineConfig } from './types.js';
+import type { DeviceResultReport, EngineConfig } from './types.js';
 import { validateProfileUpdates } from './validate-profile.js';
 import type { RawInput } from '@aurora/input-processor';
 
@@ -47,12 +47,12 @@ app.post('/process', async (req: Request, res: Response) => {
 
 app.post('/confirm', async (req: Request, res: Response) => {
   try {
-    const { pendingAction } = req.body as { pendingAction: string };
-    if (!pendingAction) {
-      res.status(400).json({ error: 'Missing pendingAction' });
+    const { pendingActionId } = req.body as { pendingActionId?: string };
+    if (!pendingActionId || typeof pendingActionId !== 'string') {
+      res.status(400).json({ error: 'Missing pendingActionId' });
       return;
     }
-    const response = await engine.confirm(pendingAction);
+    const response = await engine.confirm(pendingActionId);
     res.json(response);
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -63,6 +63,26 @@ app.post('/cancel', async (_req: Request, res: Response) => {
   try {
     const response = await engine.cancel();
     res.json(response);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// El dispositivo reporta el resultado de ejecutar una skillCall nativa,
+// para que el historial de conversación refleje lo que realmente pasó.
+app.post('/process-result', async (req: Request, res: Response) => {
+  try {
+    const report = req.body as DeviceResultReport;
+    if (!report || typeof report.skillName !== 'string' || typeof report.success !== 'boolean') {
+      res.status(400).json({ error: 'Invalid result report' });
+      return;
+    }
+    await engine.reportResult({
+      skillName: report.skillName,
+      success: report.success,
+      message: typeof report.message === 'string' ? report.message : '',
+    });
+    res.json({ status: 'ok' });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
