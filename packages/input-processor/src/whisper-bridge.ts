@@ -11,6 +11,16 @@ export interface TranscriptionResult {
   segments: Array<{ start: number; end: number; text: string }>;
 }
 
+// El intérprete varía por máquina: Windows puede tener 'python' o el
+// launcher 'py'; macOS/Linux suele tener solo 'python3'. Se prueba en
+// orden y se puede forzar con la variable de entorno PYTHON_BIN.
+const PYTHON_CANDIDATES = [
+  process.env.PYTHON_BIN,
+  'python',
+  'python3',
+  'py',
+].filter((c): c is string => typeof c === 'string' && c.length > 0);
+
 export async function transcribeAudio(
   audioPath: string,
   model: string = 'small',
@@ -48,28 +58,66 @@ print(json.dumps(result))
 
   return new Promise((resolve, reject) => {
     const args = [scriptPath, audioPath, model, language || 'auto'];
-    const py = spawn('python', args);
-
+    let attempt = 0;
     let output = '';
     let errorOutput = '';
+    let settled = false;
 
-    py.stdout.on('data', (data) => { output += data.toString(); });
-    py.stderr.on('data', (data) => { errorOutput += data.toString(); });
-
-    py.on('close', (code) => {
+    const cleanup = () => {
       try { fs.unlinkSync(scriptPath); } catch {}
+    };
 
-      if (code !== 0) {
-        reject(new Error(`Whisper transcription failed: ${errorOutput}`));
+    const tryNext = () => {
+      const bin = PYTHON_CANDIDATES[attempt];
+      if (!bin) {
+        settled = true;
+        cleanup();
+        reject(new Error(
+          `No se encontró intérprete de Python (probados: ${PYTHON_CANDIDATES.join(', ')}). ` +
+          'Instala Python 3 o define la variable de entorno PYTHON_BIN.'
+        ));
         return;
       }
 
-      try {
-        const result = JSON.parse(output.trim()) as TranscriptionResult;
-        resolve(result);
-      } catch (e) {
-        reject(new Error(`Failed to parse Whisper output: ${output}`));
-      }
-    });
+      const py = spawn(bin, args);
+      output = '';
+      errorOutput = '';
+
+      py.stdout.on('data', (data) => { output += data.toString(); });
+      py.stderr.on('data', (data) => { errorOutput += data.toString(); });
+
+      py.on('error', (err: NodeJS.ErrnoException) => {
+        if (settled) return;
+        if (err.code === 'ENOENT') {
+          // Ese binario no existe en esta máquina: probar el siguiente.
+          attempt++;
+          tryNext();
+        } else {
+          settled = true;
+          cleanup();
+          reject(new Error(`No se pudo ejecutar ${bin}: ${err.message}`));
+        }
+      });
+
+      py.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+
+        if (code !== 0) {
+          reject(new Error(`Whisper transcription failed: ${errorOutput}`));
+          return;
+        }
+
+        try {
+          const result = JSON.parse(output.trim()) as TranscriptionResult;
+          resolve(result);
+        } catch {
+          reject(new Error(`Failed to parse Whisper output: ${output}`));
+        }
+      });
+    };
+
+    tryNext();
   });
 }

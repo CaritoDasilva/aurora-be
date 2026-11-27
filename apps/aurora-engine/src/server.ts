@@ -16,7 +16,10 @@ const engine = new AuroraEngine({
 });
 
 const app: Application = express();
-app.use(express.json({ limit: '1mb' }));
+// 10 MB: el audio de voz viaja en base64 dentro del JSON (~1,3 MB por minuto
+// de grabación). Con 1 MB un mensaje de ~45 segundos fallaba con 413 — y las
+// personas mayores hablan lento, con pausas.
+app.use(express.json({ limit: '10mb' }));
 
 // CORS — allow all origins
 app.use((_req: Request, res: Response, next: NextFunction) => {
