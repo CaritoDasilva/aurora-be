@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
-    "test": "tsc && node --test dist/validate-profile.test.js",
+    "test": "tsc && node --test dist/validate-profile.test.js dist/pending-actions.test.js",
     "test:pipeline": "tsx src/test.ts"
   },
   "dependencies": {

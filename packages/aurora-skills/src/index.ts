@@ -1,15 +1,19 @@
 export type { SkillResult, Contact, SkillsConfig, ActionCategory } from './types.js';
+export type { NativeInstruction, NativeInstructionResult } from './native-instructions.js';
 export { loadContacts, findContact, addContact } from './contacts.js';
 export { makeCall } from './call.js';
 export { sendSMS } from './sms.js';
-export { setReminder } from './reminder.js';
+export { setReminder, parseReminderTime } from './reminder.js';
 export { webSearch } from './search.js';
+export { extractTarget, extractTime, extractSmsBody } from './extract.js';
+export { buildNativeInstruction } from './native-instructions.js';
 
 import type { SkillsConfig, SkillResult, ActionCategory } from './types.js';
 import { makeCall } from './call.js';
 import { sendSMS } from './sms.js';
 import { setReminder } from './reminder.js';
 import { webSearch } from './search.js';
+import { extractTarget, extractTime } from './extract.js';
 
 export class SkillsExecutor {
   private config: SkillsConfig;
@@ -43,23 +47,4 @@ export class SkillsExecutor {
         return { success: false, message: 'Habilidad no disponible aún' };
     }
   }
-}
-
-function extractTarget(content: string): string {
-  // "llama a mi hija María" → "mi hija María"; "a María" → "María"
-  const match = content.match(/\ba\s+(.+)$/i);
-  return match ? match[1].trim() : content;
-}
-
-function extractTime(content: string): string | undefined {
-  const patterns = [
-    /en\s+\d+\s+(?:minutos?|horas?)/i,
-    /(?:a las?|las?)\s+\d{1,2}(?::\d{2})?\s*(?:de la tarde|de la noche|de la mañana|am|pm)?/i,
-    /\d{1,2}(?::\d{2})?\s*(?:am|pm)/i,
-  ];
-  for (const p of patterns) {
-    const m = content.match(p);
-    if (m) return m[0];
-  }
-  return undefined;
 }
